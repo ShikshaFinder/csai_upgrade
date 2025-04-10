@@ -7,6 +7,7 @@ from Agents.kofahi import Kofahi
 from Agents.rakan import Rakan
 from Agents.salah import Salah
 from Agents.sajed import Sajed
+from scanner import OWASPScanner
 from dotenv import load_dotenv
 
 # Load environment variables
@@ -41,9 +42,14 @@ def initialize_log_file(target_ip, scan_description):
 
 def main():
     target_ip = "34.202.94.66"
+    target_url = f"http://{target_ip}"  # Assuming HTTP, modify as needed
     scan_description = "Analyze the given target for any potential vulnerabilities. If any vulnerabilities are detected, identify the corresponding exploits and generate a comprehensive report detailing the findings. Clearly document the exploit, its impact, and the steps required to mitigate it. Additionally, demonstrate the exploit in a controlled manner to validate the vulnerability before presenting it to the client"
     log_file_path = initialize_log_file(target_ip, scan_description)
     
+    # Initialize scanner
+    scanner = OWASPScanner(target_url=target_url, verbose=True)
+    
+    # Initialize agents
     ammar = Ammar(api_key=API_KEY, azure_endpoint=AZURE_ENDPOINT, deployment_name=DEPLOYMENT_NAME)
     hassan = Hassan(api_key=API_KEY, azure_endpoint=AZURE_ENDPOINT, deployment_name=DEPLOYMENT_NAME)
     kofahi = Kofahi(api_key=API_KEY, azure_endpoint=AZURE_ENDPOINT, deployment_name=DEPLOYMENT_NAME)
@@ -53,8 +59,29 @@ def main():
     
     findings = []
 
-    print("Initial Strategy:")
-    strategy = ammar.generate_strategy(target_ip, scan_description, log_file_path=log_file_path)
+    # Run OWASP scanner first
+    print("Running initial OWASP vulnerability scan...")
+    initial_scan_results = scanner.get_standardized_output()
+    findings.append({"initial_scan_results": initial_scan_results})
+    
+    # Generate initial exploit suggestions
+    initial_exploit_suggestions = scanner.generate_exploit_suggestions()
+    findings.append({"initial_exploit_suggestions": initial_exploit_suggestions})
+    
+    # Have Hassan review the initial scan results
+    print("Hassan reviewing initial scan results...")
+    hassan_initial_review = hassan.review_output(initial_scan_results, scan_description, log_file_path=log_file_path)
+    findings.append({"hassan_initial_review": hassan_initial_review})
+    
+    # Generate strategy based on Hassan's review of scan results
+    print("Generating strategy based on initial scan results...")
+    strategy = ammar.generate_strategy(
+        target_ip, 
+        scan_description, 
+        initial_scan_results=initial_scan_results,
+        hassan_review=hassan_initial_review,
+        log_file_path=log_file_path
+    )
     findings.append({"strategy": strategy})
 
     while True:
@@ -62,13 +89,21 @@ def main():
         findings.append({"reviewed_strategy": reviewed_strategy})
 
         if reviewed_strategy["approved"]:
-            commands = strategy["strategy"]
-            output = salah.execute_commands(commands, target_ip, scan_description, kofahi, ammar, rakan, log_file_path=log_file_path)
-            print("Command Output:")
-            print(output)
-            findings.append({"commands": commands, "output": output})
-            print("Hassan's Thoughts on the scan result:")
-            hassan_assessment = hassan.review_output(output, scan_description, log_file_path=log_file_path)
+            # Run detailed OWASP scanner with specific focus areas
+            print("Running detailed OWASP vulnerability scan...")
+            detailed_scan_results = scanner.get_standardized_output()
+            findings.append({"detailed_scan_results": detailed_scan_results})
+            
+            # Generate detailed exploit suggestions
+            detailed_exploit_suggestions = scanner.generate_exploit_suggestions()
+            findings.append({"detailed_exploit_suggestions": detailed_exploit_suggestions})
+            
+            # Generate mitigation report
+            mitigation_report = scanner.generate_mitigation_report()
+            findings.append({"mitigation_report": mitigation_report})
+            
+            print("Hassan's Thoughts on the detailed scan result:")
+            hassan_assessment = hassan.review_output(detailed_scan_results, scan_description, log_file_path=log_file_path)
             findings.append({"hassan_assessment": hassan_assessment})
 
             if hassan_assessment["satisfactory"]:
@@ -76,14 +111,26 @@ def main():
                 break
             else:
                 feedback = hassan_assessment["feedback"]
-                strategy = ammar.generate_strategy(target_ip, scan_description, feedback=feedback, log_file_path=log_file_path)
+                strategy = ammar.generate_strategy(
+                    target_ip, 
+                    scan_description, 
+                    feedback=feedback,
+                    previous_scan_results=detailed_scan_results,
+                    log_file_path=log_file_path
+                )
                 findings.append({"updated_strategy_based_on_feedback": strategy})
                 print("Updated strategy based on Hassan's feedback:")
         else:
             feedback = reviewed_strategy["feedback"]
             print("Hassan's feedback:")
             print("Updated strategy based on Hassan's feedback:")
-            strategy = ammar.generate_strategy(target_ip, scan_description, feedback=feedback, log_file_path=log_file_path)
+            strategy = ammar.generate_strategy(
+                target_ip, 
+                scan_description, 
+                feedback=feedback,
+                previous_scan_results=initial_scan_results,
+                log_file_path=log_file_path
+            )
             findings.append({"updated_strategy_based_on_feedback": strategy})
 
     findings_file = "findings.json"
