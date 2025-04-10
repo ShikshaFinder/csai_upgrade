@@ -51,7 +51,8 @@ RUN nuclei -update-templates || echo "Warning: Failed to update nuclei templates
 
 # Copy requirements first to leverage Docker cache
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install --upgrade pip && \
+    pip install --no-cache-dir -r requirements.txt
 
 # Install additional Python packages
 RUN pip install --no-cache-dir \
