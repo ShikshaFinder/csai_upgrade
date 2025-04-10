@@ -18,28 +18,26 @@ RUN apt-get update && apt-get install -y \
     zlib1g-dev \
     && rm -rf /var/lib/apt/lists/*
 
-# Install security tools
-RUN wget https://github.com/projectdiscovery/nuclei/releases/download/v2.9.0/nuclei_2.9.0_linux_amd64.tar.gz \
-    && tar -xzf nuclei_2.9.0_linux_amd64.tar.gz \
-    && mv nuclei /usr/local/bin/ \
-    && rm nuclei_2.9.0_linux_amd64.tar.gz
+# Install security tools with error handling
+RUN set -eux; \
+    # Install nuclei
+    curl -sL https://raw.githubusercontent.com/projectdiscovery/nuclei/v2.9.0/install.sh | bash || \
+    (echo "Failed to install nuclei" && exit 1); \
+    # Install sqlmap
+    git clone https://github.com/sqlmapproject/sqlmap.git /opt/sqlmap && \
+    ln -s /opt/sqlmap/sqlmap.py /usr/local/bin/sqlmap || \
+    (echo "Failed to install sqlmap" && exit 1); \
+    # Install httpx
+    curl -sL https://github.com/projectdiscovery/httpx/releases/download/v1.3.0/httpx_1.3.0_linux_amd64.tar.gz | \
+    tar xz && mv httpx /usr/local/bin/ || \
+    (echo "Failed to install httpx" && exit 1); \
+    # Install subfinder
+    curl -sL https://github.com/projectdiscovery/subfinder/releases/download/v2.6.1/subfinder_2.6.1_linux_amd64.tar.gz | \
+    tar xz && mv subfinder /usr/local/bin/ || \
+    (echo "Failed to install subfinder" && exit 1)
 
-RUN git clone https://github.com/sqlmapproject/sqlmap.git /opt/sqlmap \
-    && ln -s /opt/sqlmap/sqlmap.py /usr/local/bin/sqlmap
-
-# Install nuclei templates
-RUN nuclei -update-templates
-
-# Install additional security tools
-RUN wget https://github.com/projectdiscovery/httpx/releases/download/v1.3.0/httpx_1.3.0_linux_amd64.tar.gz \
-    && tar -xzf httpx_1.3.0_linux_amd64.tar.gz \
-    && mv httpx /usr/local/bin/ \
-    && rm httpx_1.3.0_linux_amd64.tar.gz
-
-RUN wget https://github.com/projectdiscovery/subfinder/releases/download/v2.6.1/subfinder_2.6.1_linux_amd64.tar.gz \
-    && tar -xzf subfinder_2.6.1_linux_amd64.tar.gz \
-    && mv subfinder /usr/local/bin/ \
-    && rm subfinder_2.6.1_linux_amd64.tar.gz
+# Update nuclei templates
+RUN nuclei -update-templates || echo "Warning: Failed to update nuclei templates"
 
 # Copy requirements first to leverage Docker cache
 COPY requirements.txt .
