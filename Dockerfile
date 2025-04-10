@@ -2,7 +2,7 @@ FROM python:3.9-slim
 
 WORKDIR /app
 
-# Install system dependencies
+# Install system dependencies including Go
 RUN apt-get update && apt-get install -y \
     nmap \
     git \
@@ -16,24 +16,27 @@ RUN apt-get update && apt-get install -y \
     libxml2-dev \
     libxslt1-dev \
     zlib1g-dev \
+    golang-go \
     && rm -rf /var/lib/apt/lists/*
 
-# Install security tools with error handling
+# Set up Go environment
+ENV GOPATH=/go
+ENV PATH=$GOPATH/bin:$PATH
+
+# Install security tools using Go
 RUN set -eux; \
     # Install nuclei
-    curl -sL https://raw.githubusercontent.com/projectdiscovery/nuclei/v2.9.0/install.sh | bash || \
+    go install -v github.com/projectdiscovery/nuclei/v3/cmd/nuclei@latest || \
     (echo "Failed to install nuclei" && exit 1); \
     # Install sqlmap
-    git clone https://github.com/sqlmapproject/sqlmap.git /opt/sqlmap && \
+    git clone --depth 1 https://github.com/sqlmapproject/sqlmap.git /opt/sqlmap && \
     ln -s /opt/sqlmap/sqlmap.py /usr/local/bin/sqlmap || \
     (echo "Failed to install sqlmap" && exit 1); \
     # Install httpx
-    curl -sL https://github.com/projectdiscovery/httpx/releases/download/v1.3.0/httpx_1.3.0_linux_amd64.tar.gz | \
-    tar xz && mv httpx /usr/local/bin/ || \
+    go install -v github.com/projectdiscovery/httpx/cmd/httpx@latest || \
     (echo "Failed to install httpx" && exit 1); \
     # Install subfinder
-    curl -sL https://github.com/projectdiscovery/subfinder/releases/download/v2.6.1/subfinder_2.6.1_linux_amd64.tar.gz | \
-    tar xz && mv subfinder /usr/local/bin/ || \
+    go install -v github.com/projectdiscovery/subfinder/v2/cmd/subfinder@latest || \
     (echo "Failed to install subfinder" && exit 1)
 
 # Update nuclei templates
