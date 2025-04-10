@@ -54,7 +54,7 @@ COPY requirements.txt .
 RUN pip install --upgrade pip && \
     pip install --no-cache-dir -r requirements.txt
 
-# Install additional Python packages
+# Install additional Python packages with specific versions
 RUN pip install --no-cache-dir \
     beautifulsoup4==4.12.0 \
     lxml==4.9.0 \
@@ -62,7 +62,9 @@ RUN pip install --no-cache-dir \
     python-nmap==0.7.1 \
     sslyze==5.0.0 \
     colorama==0.4.6 \
-    pexpect==4.9.0
+    pexpect==4.9.0 \
+    openai==1.2.0 \
+    pydantic==2.4.2
 
 # Copy the rest of the application
 COPY . .
