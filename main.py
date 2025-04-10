@@ -7,6 +7,7 @@ from Agents.kofahi import Kofahi
 from Agents.rakan import Rakan
 from Agents.salah import Salah
 from Agents.sajed import Sajed
+from Agents.web_auth_analyzer import WebAuthAnalyzer
 from scanner import OWASPScanner
 from dotenv import load_dotenv
 
@@ -46,8 +47,9 @@ def main():
     scan_description = "Analyze the given target for any potential vulnerabilities. If any vulnerabilities are detected, identify the corresponding exploits and generate a comprehensive report detailing the findings. Clearly document the exploit, its impact, and the steps required to mitigate it. Additionally, demonstrate the exploit in a controlled manner to validate the vulnerability before presenting it to the client"
     log_file_path = initialize_log_file(target_ip, scan_description)
     
-    # Initialize scanner
+    # Initialize scanner and analyzer
     scanner = OWASPScanner(target_url=target_url, verbose=True)
+    auth_analyzer = WebAuthAnalyzer(api_key=API_KEY, azure_endpoint=AZURE_ENDPOINT, deployment_name=DEPLOYMENT_NAME)
     
     # Initialize agents
     ammar = Ammar(api_key=API_KEY, azure_endpoint=AZURE_ENDPOINT, deployment_name=DEPLOYMENT_NAME)
@@ -59,7 +61,12 @@ def main():
     
     findings = []
 
-    # Run OWASP scanner first
+    # Run WebAuthAnalyzer first
+    print("Analyzing website authentication requirements...")
+    auth_requirements = auth_analyzer.analyze_website(target_url)
+    findings.append({"auth_requirements": auth_requirements})
+    
+    # Run OWASP scanner
     print("Running initial OWASP vulnerability scan...")
     initial_scan_results = scanner.get_standardized_output()
     findings.append({"initial_scan_results": initial_scan_results})
@@ -68,17 +75,23 @@ def main():
     initial_exploit_suggestions = scanner.generate_exploit_suggestions()
     findings.append({"initial_exploit_suggestions": initial_exploit_suggestions})
     
-    # Have Hassan review the initial scan results
-    print("Hassan reviewing initial scan results...")
-    hassan_initial_review = hassan.review_output(initial_scan_results, scan_description, log_file_path=log_file_path)
+    # Have Hassan review the initial scan results and auth requirements
+    print("Hassan reviewing initial scan results and auth requirements...")
+    hassan_initial_review = hassan.review_output(
+        initial_scan_results, 
+        scan_description, 
+        auth_requirements=auth_requirements,
+        log_file_path=log_file_path
+    )
     findings.append({"hassan_initial_review": hassan_initial_review})
     
-    # Generate strategy based on Hassan's review of scan results
-    print("Generating strategy based on initial scan results...")
+    # Generate strategy based on Hassan's review
+    print("Generating strategy based on initial scan results and auth requirements...")
     strategy = ammar.generate_strategy(
         target_ip, 
         scan_description, 
         initial_scan_results=initial_scan_results,
+        auth_requirements=auth_requirements,
         hassan_review=hassan_initial_review,
         log_file_path=log_file_path
     )
@@ -103,7 +116,12 @@ def main():
             findings.append({"mitigation_report": mitigation_report})
             
             print("Hassan's Thoughts on the detailed scan result:")
-            hassan_assessment = hassan.review_output(detailed_scan_results, scan_description, log_file_path=log_file_path)
+            hassan_assessment = hassan.review_output(
+                detailed_scan_results, 
+                scan_description, 
+                auth_requirements=auth_requirements,
+                log_file_path=log_file_path
+            )
             findings.append({"hassan_assessment": hassan_assessment})
 
             if hassan_assessment["satisfactory"]:
@@ -116,6 +134,7 @@ def main():
                     scan_description, 
                     feedback=feedback,
                     previous_scan_results=detailed_scan_results,
+                    auth_requirements=auth_requirements,
                     log_file_path=log_file_path
                 )
                 findings.append({"updated_strategy_based_on_feedback": strategy})
@@ -129,6 +148,7 @@ def main():
                 scan_description, 
                 feedback=feedback,
                 previous_scan_results=initial_scan_results,
+                auth_requirements=auth_requirements,
                 log_file_path=log_file_path
             )
             findings.append({"updated_strategy_based_on_feedback": strategy})
