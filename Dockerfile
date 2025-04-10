@@ -2,8 +2,9 @@ FROM python:3.9-slim
 
 WORKDIR /app
 
-# Install system dependencies including Go
-RUN apt-get update && apt-get install -y \
+# Install system dependencies
+RUN apt-get update && \
+    DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
     nmap \
     git \
     curl \
@@ -16,27 +17,33 @@ RUN apt-get update && apt-get install -y \
     libxml2-dev \
     libxslt1-dev \
     zlib1g-dev \
-    golang-go \
-    && rm -rf /var/lib/apt/lists/*
+    && rm -rf /var/lib/apt/lists/* \
+    && apt-get clean
+
+# Install Go 1.21
+RUN wget https://go.dev/dl/go1.21.6.linux-amd64.tar.gz && \
+    tar -C /usr/local -xzf go1.21.6.linux-amd64.tar.gz && \
+    rm go1.21.6.linux-amd64.tar.gz
 
 # Set up Go environment
 ENV GOPATH=/go
-ENV PATH=$GOPATH/bin:$PATH
+ENV PATH=/usr/local/go/bin:$GOPATH/bin:$PATH
+ENV GO111MODULE=on
 
 # Install security tools using Go
 RUN set -eux; \
     # Install nuclei
-    go install -v github.com/projectdiscovery/nuclei/v3/cmd/nuclei@latest || \
+    go install -v github.com/projectdiscovery/nuclei/v3/cmd/nuclei@v3.1.0 || \
     (echo "Failed to install nuclei" && exit 1); \
     # Install sqlmap
     git clone --depth 1 https://github.com/sqlmapproject/sqlmap.git /opt/sqlmap && \
     ln -s /opt/sqlmap/sqlmap.py /usr/local/bin/sqlmap || \
     (echo "Failed to install sqlmap" && exit 1); \
     # Install httpx
-    go install -v github.com/projectdiscovery/httpx/cmd/httpx@latest || \
+    go install -v github.com/projectdiscovery/httpx/cmd/httpx@v1.3.0 || \
     (echo "Failed to install httpx" && exit 1); \
     # Install subfinder
-    go install -v github.com/projectdiscovery/subfinder/v2/cmd/subfinder@latest || \
+    go install -v github.com/projectdiscovery/subfinder/v2/cmd/subfinder@v2.6.1 || \
     (echo "Failed to install subfinder" && exit 1)
 
 # Update nuclei templates
